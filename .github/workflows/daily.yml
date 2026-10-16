@@ -1,0 +1,345 @@
+name: Daily Short
+on:
+  schedule:
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - run: pip install moviepy==1.0.3 edge-tts requests Pillow numpy google-api-python-client google-auth
+      - name: Run agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          PRIVACY: private
+        run: |
+          python - <<'PYEOF'
+          import os, json, asyncio, datetime, random, tempfile
+          import requests, numpy as np
+          import edge_tts
+          from PIL import Image, ImageDraw, ImageFont
+          from moviepy.editor import (VideoFileClip, AudioFileClip, ImageClip,
+                                      CompositeVideoClip, concatenate_videoclips)
+
+          W, H = 1080, 1920
+          VOICE = os.environ.get("VOICE", "hi-IN-MadhurNeural")
+          PEXELS = os.environ["PEXELS_API_KEY"]
+          FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+          tmp = tempfile.mkdtemp()
+
+          FALLBACK = [
+           {
+            "title": "Phone se paise kamane ke 3 tareeke",
+            "lines": [
+             {
+              "text": "Phone se paise kamane ke teen asli tareeke.",
+              "q": "man using smartphone"
+             },
+             {
+              "text": "Number ek: freelancing. Fiverr pe apna skill bechो.",
+              "q": "freelancer laptop"
+             },
+             {
+              "text": "Number do: YouTube Shorts. Roz ek chhoti video daalo.",
+              "q": "video creator phone"
+             },
+             {
+              "text": "Number teen: online tutoring. Jo aata hai, wo sikhao.",
+              "q": "online teaching"
+             },
+             {
+              "text": "Pehle ek tareeka chuno, aur kam se kam tees din lagey raho. Follow karo.",
+              "q": "success motivation sunrise"
+             }
+            ]
+           },
+           {
+            "title": "Paise bachane ka 50-30-20 rule",
+            "lines": [
+             {
+              "text": "Kamate ho, par bachte nahi? Ye rule try karo.",
+              "q": "money coins"
+             },
+             {
+              "text": "Kamai ka pachas percent zaroori kharchon pe.",
+              "q": "grocery shopping"
+             },
+             {
+              "text": "Tees percent apne shauk pe.",
+              "q": "friends having fun"
+             },
+             {
+              "text": "Aur bees percent seedha bachat mein.",
+              "q": "piggy bank savings"
+             },
+             {
+              "text": "Mahine ki shuruat mein hi bachat alag kar do. Follow karo.",
+              "q": "writing budget notebook"
+             }
+            ]
+           },
+           {
+            "title": "Subah jaldi uthne ke fayde",
+            "lines": [
+             {
+              "text": "Subah paanch baje uthne wale log alag kyun hote hain?",
+              "q": "sunrise morning"
+             },
+             {
+              "text": "Shant time milta hai, koi disturb nahi karta.",
+              "q": "quiet morning coffee"
+             },
+             {
+              "text": "Din ka sabse zaroori kaam pehle ho jata hai.",
+              "q": "person working focused"
+             },
+             {
+              "text": "Kal se sirf pandrah minute jaldi uthkar dekho. Follow karo.",
+              "q": "alarm clock"
+             }
+            ]
+           },
+           {
+            "title": "Focus badhane ke 3 trick",
+            "lines": [
+             {
+              "text": "Padhte ya kaam karte waqt dhyan bhatakta hai? Ye karo.",
+              "q": "student studying"
+             },
+             {
+              "text": "Ek: phone ko dusre kamre mein rakh do.",
+              "q": "phone on table"
+             },
+             {
+              "text": "Do: pachchis minute kaam, paanch minute break.",
+              "q": "timer clock"
+             },
+             {
+              "text": "Teen: ek time pe sirf ek kaam.",
+              "q": "desk workspace"
+             },
+             {
+              "text": "Aaj hi try karo, farak dikhega. Follow karo.",
+              "q": "productivity"
+             }
+            ]
+           },
+           {
+            "title": "Kam paise mein business ideas",
+            "lines": [
+             {
+              "text": "Hazaar rupaye mein shuru hone wale teen kaam.",
+              "q": "small business owner"
+             },
+             {
+              "text": "Ek: homemade snacks ya tiffin service.",
+              "q": "cooking food"
+             },
+             {
+              "text": "Do: social media posts ya video edit karke dena.",
+              "q": "video editing"
+             },
+             {
+              "text": "Teen: mobile accessories ki chhoti dukaan online.",
+              "q": "phone accessories"
+             },
+             {
+              "text": "Chhota shuru karo, seekhte jao. Follow karo.",
+              "q": "startup entrepreneur"
+             }
+            ]
+           },
+           {
+            "title": "Neend achhi lane ke tareeke",
+            "lines": [
+             {
+              "text": "Raat ko neend nahi aati? Ye aadatein badlo.",
+              "q": "night bedroom"
+             },
+             {
+              "text": "Sone se ek ghanta pehle phone band kar do.",
+              "q": "phone night bed"
+             },
+             {
+              "text": "Roz ek hi time pe soo jao.",
+              "q": "sleeping person"
+             },
+             {
+              "text": "Kamra andhera aur thanda rakho. Follow karo.",
+              "q": "dark room"
+             }
+            ]
+           },
+           {
+            "title": "Self confidence kaise badhaye",
+            "lines": [
+             {
+              "text": "Confidence paida hota hai, mil nahi jata.",
+              "q": "confident man walking"
+             },
+             {
+              "text": "Roz ek chhota darr ka kaam karo.",
+              "q": "person speaking"
+             },
+             {
+              "text": "Apni galtiyon se seekho, sharam mat karo.",
+              "q": "learning notebook"
+             },
+             {
+              "text": "Roz khud ko thoda behtar banao. Follow karo.",
+              "q": "mountain climbing"
+             }
+            ]
+           }
+          ]
+
+
+
+
+          def pexels_clip(query, idx):
+              r = requests.get("https://api.pexels.com/videos/search",
+                               headers={"Authorization": PEXELS},
+                               params={"query": query, "orientation": "portrait", "per_page": 8},
+                               timeout=30).json()
+              vids = r.get("videos") or []
+              if not vids:
+                  r = requests.get("https://api.pexels.com/videos/search",
+                                   headers={"Authorization": PEXELS},
+                                   params={"query": "nature", "orientation": "portrait", "per_page": 8},
+                                   timeout=30).json()
+                  vids = r["videos"]
+              v = random.choice(vids)
+              files = [f for f in v["video_files"] if f.get("height", 0) >= 1280] or v["video_files"]
+              f = sorted(files, key=lambda x: x.get("height", 0))[0]
+              path = os.path.join(tmp, f"bg{idx}.mp4")
+              with open(path, "wb") as fh:
+                  fh.write(requests.get(f["link"], timeout=120).content)
+              return path
+
+
+          def caption_image(text):
+              img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+              d = ImageDraw.Draw(img)
+              font = ImageFont.truetype(FONT, 72)
+              words, lines, cur = text.split(), [], ""
+              for w in words:
+                  t = (cur + " " + w).strip()
+                  if d.textlength(t, font=font) > W - 160:
+                      lines.append(cur); cur = w
+                  else:
+                      cur = t
+              lines.append(cur)
+              lh = 100
+              y = int(H * 0.62)
+              for ln in lines:
+                  x = (W - d.textlength(ln, font=font)) / 2
+                  d.text((x, y), ln, font=font, fill="white", stroke_width=6, stroke_fill="black")
+                  y += lh
+              return np.array(img)
+
+
+          async def tts(text, path):
+              await edge_tts.Communicate(text, VOICE).save(path)
+
+
+          def build(item, out):
+              clips = []
+              for i, line in enumerate(item["lines"]):
+                  ap = os.path.join(tmp, f"a{i}.mp3")
+                  asyncio.run(tts(line["text"], ap))
+                  audio = AudioFileClip(ap)
+                  dur = audio.duration + 0.3
+                  bg = VideoFileClip(pexels_clip(line["q"], i)).without_audio()
+                  if bg.duration < dur:
+                      bg = bg.loop(duration=dur)
+                  bg = bg.subclip(0, dur)
+                  bg = bg.resize(height=H)
+                  if bg.w < W:
+                      bg = bg.resize(width=W)
+                  bg = bg.crop(x_center=bg.w / 2, y_center=bg.h / 2, width=W, height=H)
+                  cap = ImageClip(caption_image(line["text"])).set_duration(dur)
+                  clip = CompositeVideoClip([bg, cap], size=(W, H)).set_audio(audio)
+                  clips.append(clip)
+              final = concatenate_videoclips(clips, method="compose")
+              final.write_videofile(out, fps=30, codec="libx264", audio_codec="aac",
+                                    threads=2, preset="veryfast")
+
+
+
+          def gemini_story():
+              key = os.environ.get("GEMINI_API_KEY")
+              if not key:
+                  return None
+              prompt = (
+                  "Tum ek horror kahani likhne wale ho YouTube Shorts ke liye. "
+                  "Bilkul nayi, original, suspense wali horror kahani likho, Hinglish (Roman Hindi) mein. "
+                  "Koi gore ya khoon-kharaba nahi, sirf darr, awaazein, raat, ajeeb ehsaas. "
+                  "8 se 10 chhoti lines, har line 8 se 14 shabd. Pehli line ek hook ho jo turant rok le. "
+                  "Aakhri line mein twist ho, uske baad ek aur line: 'Aisi kahaniyon ke liye follow karo.' "
+                  "Har line ke saath 'q' do: Pexels pe search ke liye 2-3 angrezi shabd (dark, night, forest, empty house type). "
+                  "Sirf JSON do is format mein: "
+                  '{"title": "catchy title Hinglish", "lines": [{"text": "...", "q": "..."}]}'
+              )
+              models = [os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"), "gemini-2.5-flash"]
+              for m in models:
+                  try:
+                      r = requests.post(
+                          f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent",
+                          headers={"x-goog-api-key": key},
+                          json={"contents": [{"parts": [{"text": prompt}]}],
+                                "generationConfig": {"responseMimeType": "application/json",
+                                                     "temperature": 1.0}},
+                          timeout=90)
+                      txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                      data = json.loads(txt.strip().strip("`").replace("json\n", "", 1))
+                      if data.get("lines") and data.get("title"):
+                          print("Story from", m)
+                          return data
+                  except Exception as e:
+                      print("Gemini failed with", m, e)
+              return None
+
+
+          def upload(path, title, desc):
+              from google.oauth2.credentials import Credentials
+              from googleapiclient.discovery import build as gbuild
+              from googleapiclient.http import MediaFileUpload
+              creds = Credentials(None,
+                                  refresh_token=os.environ["YT_REFRESH_TOKEN"],
+                                  token_uri="https://oauth2.googleapis.com/token",
+                                  client_id=os.environ["YT_CLIENT_ID"],
+                                  client_secret=os.environ["YT_CLIENT_SECRET"])
+              yt = gbuild("youtube", "v3", credentials=creds)
+              body = {"snippet": {"title": (title + " #Shorts")[:100],
+                                  "description": desc + "\n\n#Shorts",
+                                  "categoryId": "22"},
+                      "status": {"privacyStatus": os.environ.get("PRIVACY", "private"),
+                                 "selfDeclaredMadeForKids": False}}
+              req = yt.videos().insert(part="snippet,status", body=body,
+                                       media_body=MediaFileUpload(path, resumable=True))
+              resp = None
+              while resp is None:
+                  _, resp = req.next_chunk()
+              print("Uploaded:", resp["id"])
+
+
+          if __name__ == "__main__":
+              item = gemini_story()
+              if not item:
+                  item = FALLBACK[datetime.date.today().toordinal() % len(FALLBACK)]
+              out = os.path.join(tmp, "short.mp4")
+              build(item, out)
+              if os.environ.get("SKIP_UPLOAD"):
+                  import shutil; shutil.copy(out, "short.mp4"); print("Saved short.mp4")
+              else:
+                  upload(out, item["title"], item["title"] + "\n\nHorror kahani | Hinglish\n#horror #horrorstories #shorts")
+          PYEOF
