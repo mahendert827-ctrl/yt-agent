@@ -16,7 +16,7 @@ jobs:
       - name: Run agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
@@ -32,7 +32,7 @@ jobs:
 
           W, H = 1080, 1920
           VOICE = os.environ.get("VOICE", "hi-IN-MadhurNeural")
-          PEXELS = os.environ["PEXELS_API_KEY"]
+          PEXELS = os.environ["PIXABAY_API_KEY"]
           FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
           tmp = tempfile.mkdtemp()
 
@@ -206,23 +206,25 @@ jobs:
 
 
           def pexels_clip(query, idx):
-              r = requests.get("https://api.pexels.com/videos/search",
-                               headers={"Authorization": PEXELS},
-                               params={"query": query, "orientation": "portrait", "per_page": 8},
-                               timeout=30).json()
-              vids = r.get("videos") or []
-              if not vids:
-                  r = requests.get("https://api.pexels.com/videos/search",
-                                   headers={"Authorization": PEXELS},
-                                   params={"query": "nature", "orientation": "portrait", "per_page": 8},
+              def search(q):
+                  r = requests.get("https://pixabay.com/api/videos/",
+                                   params={"key": PEXELS, "q": q, "per_page": 20, "safesearch": "true"},
                                    timeout=30).json()
-                  vids = r["videos"]
-              v = random.choice(vids)
-              files = [f for f in v["video_files"] if f.get("height", 0) >= 1280] or v["video_files"]
-              f = sorted(files, key=lambda x: x.get("height", 0))[0]
+                  return r.get("hits") or []
+              vids = search(query) or search("dark night")
+              random.shuffle(vids)
+              url = None
+              for v in vids:
+                  for size in ("large", "medium", "small"):
+                      u = v["videos"].get(size, {}).get("url")
+                      if u:
+                          url = u
+                          break
+                  if url:
+                      break
               path = os.path.join(tmp, f"bg{idx}.mp4")
               with open(path, "wb") as fh:
-                  fh.write(requests.get(f["link"], timeout=120).content)
+                  fh.write(requests.get(url, timeout=120).content)
               return path
 
 
